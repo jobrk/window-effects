@@ -1,191 +1,137 @@
 # Window Effects
 
-A small macOS companion to AeroSpace: remove window shadows and make inactive
-windows slightly transparent, with immediate changes and original-state restoration.
+Remove macOS window shadows and dim inactive windows while AeroSpace handles
+layout, workspaces and shortcuts. Defaults: no shadows, active opacity `1.0`,
+inactive opacity `0.9`.
 
-The default appearance matches this machine's former yabai setup: shadows off,
-focused opacity `1.0`, inactive opacity `0.9`. AeroSpace owns window layout,
-workspaces and shortcuts. Window Effects has no yabai runtime dependency.
+This is a small command-line tool, a user LaunchAgent and a Dock payload. It has
+no yabai runtime dependency. It changes WindowServer appearance; it does not
+remove titlebars, AppKit's titlebar rim or decorations drawn by an application.
 
-## Requirements and status
+## Requirements
 
-- Apple Silicon Mac, Xcode Command Line Tools, Python 3 for tests/install scripts.
-- AeroSpace 0.21.3-Beta or newer for `apply` and `watch`. Individual window commands
-  and the backend do not require AeroSpace.
-- Dock injection requires administrator authentication, partially disabled SIP,
-  and the `-arm64e_preview_abi` boot argument. The installer never changes SIP or
-  boot arguments. See [the upstream prerequisites](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection).
-- Private macOS APIs are used. macOS 27 compatibility is **unverified**, not
-  guaranteed by successful compilation or symbol lookup. See [COMPATIBILITY.md](COMPATIBILITY.md).
+- Apple Silicon, Xcode Command Line Tools and Python 3.
+- AeroSpace 0.21.3-Beta or later for the watcher.
+- Administrator access and the SIP/arm64e prerequisites needed for Dock injection,
+  including `-arm64e_preview_abi`. See the
+  [upstream prerequisites](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection).
 
-## Build and test
+The installers do not change SIP or boot arguments. This project uses private
+APIs: live behavior is verified on macOS 26.6.2; macOS 27 is unverified. See
+[COMPATIBILITY.md](COMPATIBILITY.md) for the tested scope.
+
+## Build and install
 
 ```sh
-make
 make test
-```
-
-On a machine with arm64e user binaries already enabled, `make test-arm64e` also
-tests the backend in an arm64e host, matching Dock's pointer-authentication ABI.
-
-The executable is `build/window-effects`. Both the loader and Dock payload are
-built as **arm64e**; the ordinary CLI is arm64. There are no package dependencies.
-The live Dock test has passed on macOS 26.6.2; see the exact scope in the
-compatibility record.
-
-`make test` loads the backend into a disposable application using a separate test
-socket. It verifies actual opacity changes/readback, the expected rejection of
-shadow changes outside Dock, rollback, original-value journaling, invalid requests,
-configuration, reconnects and shutdown. It never injects into Dock or changes
-other applications' windows. Run it in a logged-in graphical macOS session.
-
-## Install
-
-First stop any existing appearance controller before enabling ours. When migrating
-from yabai, run `yabai -m config window_opacity off` and
-`yabai -m config window_shadow on` before stopping its service, so our original-state
-journal starts from the apps' normal appearance. Restart Dock to unload the old
-injection; retain your existing configuration until the migration is accepted.
-
-Install the backend and load it once:
-
-```sh
-sudo ./scripts/install-backend.sh
+sudo ./scripts/install-backend.sh --enable-autoload
 sudo "/Library/Application Support/WindowEffects/loader"
-build/window-effects doctor
-```
-
-The backend consists of two root-owned files in
-`/Library/Application Support/WindowEffects`. Its only operations are appearance
-inspection, setting, restoration, and status. It does not manipulate native Spaces
-or scan Dock for function offsets.
-
-Test the real Dock backend against one temporary application window:
-
-```sh
-make build/fixture
-python3 tests/live.py
-```
-
-Install the user-side tool and startup definition:
-
-```sh
 ./scripts/install-user.sh
-~/.local/bin/window-effects check-config
-~/.local/bin/window-effects apply
+~/.local/bin/window-effects doctor
 ```
 
-The user installer preserves an existing config. It does not start any process.
-With AeroSpace running, start the appearance watcher:
+The backend is installed under `/Library/Application Support/WindowEffects`, owned
+by root. The user installer writes `~/.local/bin/window-effects`, preserves an
+existing `~/.config/window-effects/config.json`, and installs a LaunchAgent.
+Neither installer starts the watcher.
+
+`--enable-autoload` is optional. It installs a sudoers rule for the fixed loader
+path, with no arguments and a SHA-256 digest tied to the installed binary. This
+lets the watcher reload the payload after Dock restarts, using noninteractive
+`sudo -n`. Without it, repeat the manual loader command after Dock restarts.
+
+Start AeroSpace, then enable the watcher:
 
 ```sh
 launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.window-effects.plist"
 ```
 
-The LaunchAgent starts at login. The watcher follows AeroSpace focus/window events,
-reconciles managed windows on reconnect, and restores effects when AeroSpace exits
-or the watcher receives SIGINT/SIGTERM/SIGHUP. A lightweight five-second health
-check detects a Dock restart; window updates are event-driven.
+The LaunchAgent starts at login. Keep other shadow/opacity controllers stopped.
+If migrating from yabai, clear its effects before stopping it:
+`yabai -m config window_opacity off` and `yabai -m config window_shadow on`.
+Restart Dock before loading this payload to unload any previous scripting addition.
 
-### Loading again after Dock restarts
+## Configure and use
 
-Without extra authorization, repeat the `sudo .../loader` command after Dock
-restarts. For unattended login/recovery, explicitly install the optional rule:
+The configuration file has four keys; see [config.example.json](config.example.json):
 
-```sh
-sudo ./scripts/install-backend.sh --enable-autoload
-```
+| Key | Meaning |
+|---|---|
+| `activeOpacity` | Focused-window opacity, from `0.1` to `1.0` |
+| `inactiveOpacity` | Other managed windows' opacity, from `0.1` to `1.0` |
+| `shadows` | Whether managed windows retain their WindowServer shadows |
+| `excludedApps` | Application bundle IDs to leave unchanged |
 
-This adds `/etc/sudoers.d/window-effects`, permitting only the installed loader,
-with no arguments and a SHA-256 digest tied to that signed build. The payload path
-is fixed and root-owned. The watcher uses `sudo -n` and will never ask for a password.
-Reinstall with this option after rebuilding the loader to update its digest.
-
-## Commands and configuration
+A missing file uses defaults. Invalid values or unknown keys fail validation.
+Restart the watcher after changing configuration.
 
 ```sh
-window-effects doctor
-window-effects inspect 123
-window-effects set 123 0.9 off     # window ID, opacity, shadows on/off
-window-effects restore 123
-window-effects restore           # all windows changed by this backend
-window-effects apply             # one pass over AeroSpace-managed windows
-window-effects watch             # foreground watcher; Ctrl-C restores effects
 window-effects check-config
+window-effects doctor
+window-effects apply                 # reconcile once with AeroSpace
+window-effects watch                 # foreground watcher; Ctrl-C restores effects
+window-effects inspect 123            # inspect a WindowServer window ID
+window-effects set 123 0.9 off        # opacity and shadows on/off
+window-effects restore 123            # restore one window
+window-effects restore               # restore every window changed by the backend
 ```
 
-`apply`, `watch` and `check-config` accept an optional config path. Otherwise they
-read `~/.config/window-effects/config.json`, using built-in defaults if absent.
-See [config.example.json](config.example.json). Opacity must be between `0.1` and
-`1.0`; unknown config keys and incorrect types are rejected. Restart the watcher
-after editing its configuration.
+`apply`, `watch` and `check-config` accept an optional configuration path.
+Window selection comes from AeroSpace; only normal application windows on layer
+zero may be changed. Exclusions and windows leaving that selection are restored.
+Logs are in `~/Library/Logs/window-effects/`.
 
-Only layer-zero windows belonging to regular applications can be changed.
-`apply` further restricts changes to windows listed by AeroSpace and honors bundle-ID
-exclusions. Application-drawn shadows and title-bar removal are outside its scope.
+## Restore, upgrade or uninstall
 
-The backend verifies setters by reading back the resulting state. A failed change
-attempts to roll back immediately, reports whether that worked, and retains the
-original snapshot for another restore attempt. Window IDs are paired with their
-WindowServer owner connection to reject stale snapshots after app restarts.
-
-Original values are journaled **before mutation** under
-`/tmp/window-effects-<uid>/originals.json`, inside a mode-0700 directory. This survives
-a CLI or Dock restart in the current login session. The socket accepts only peers
-with the same UID. SIGKILL cannot trigger cleanup; run `restore` afterward. On a
-reboot the old windows no longer exist. Do not delete the journal before restoration.
-
-Logs: `~/Library/Logs/window-effects/{output,error}.log`. Check `doctor` when
-effects are unavailable; its backend result distinguishes an installed CLI from a
-successfully loaded payload. Private API failures leave a visible error rather than
-silently reporting success.
-
-## Upgrade and remove
-
-Stop the watcher and restore before replacing a loaded payload:
+Stop the watcher and restore before replacing a loaded backend:
 
 ```sh
 launchctl bootout "gui/$(id -u)/local.window-effects"
 window-effects restore
 ```
 
-After rebuilding/reinstalling, restart Dock (or log out/in) to unload its old copy,
-then load the new backend and bootstrap the watcher. Do not repeatedly inject an
-already loaded payload; the server preserves its active endpoint and journal.
+Rebuild and reinstall, restart Dock, load the backend, then bootstrap the watcher
+again. Reinstall with `--enable-autoload` to refresh the permitted loader hash.
+Changing the on-disk payload does not replace the copy already loaded into Dock.
 
-Uninstall in this order:
+To uninstall:
 
 ```sh
 ./scripts/uninstall-user.sh
 sudo ./scripts/uninstall-backend.sh
 ```
 
-The user uninstaller stops the agent and restores effects before removing the CLI.
-It refuses to continue if restoration fails. Reload the backend and retry in that
-case. Backend removal deletes only our two files and our optional sudoers rule;
-log out/in afterward to unload the code already in Dock. Configuration and logs
-are retained. Re-enabling SIP is a separate Recovery operation when no remaining
-software requires it.
+The user uninstaller requires successful restoration before removing the CLI.
+Config, logs and the restoration journal are retained. Restart Dock or log out
+after removing the backend to unload its resident code.
 
-## Repository integration
+Original values are saved before mutation in a private per-user directory at
+`/tmp/window-effects-<uid>/originals.json`. The journal survives CLI and Dock
+restarts; do not delete it before restoration. If the watcher is forcibly killed,
+run `restore` manually. If the backend is unavailable, load it first.
 
-Source and releases live in [jobrk/window-effects](https://github.com/jobrk/window-effects).
-[Dotfiles](https://github.com/jobrk/dotfiles/blob/main/aerospace/README.md) owns both
-the AeroSpace profile and `window-effects/.config/window-effects/config.json`.
-[Ansible](https://github.com/jobrk/ansible#macos-desktop) fetches an immutable source
-revision, builds signed artifacts and installs root-owned backend files separately
-from the user CLI and LaunchAgent. It stows the policy before installing the watcher.
-Autoload and activation are explicit options; installation does not change SIP.
+## Read the code and run tests
 
-The coordinated desktop is active on macOS 26.6.2. See [PLAN.md](PLAN.md) for
-remaining daily-use, hardware and macOS 27 acceptance checks, and the dotfiles guide
-for controls and rollback. The old packages are retained while their services are
-disabled.
+| File | Responsibility |
+|---|---|
+| `src/main.m` | CLI, configuration, AeroSpace events and reconnection |
+| `src/payload.m` | Serial Dock service, original-state journal, verified writes and restoration |
+| `src/protocol.h` | Bounded JSON-over-Unix-socket transport and same-user checks |
+| `src/skylight.h` | Private API declarations and shadow-tag operation |
+| `src/loader.m` | arm64e bootstrap that loads the fixed payload into Dock |
 
-## Attribution
+Events trigger reconciliation with AeroSpace's current window list. A five-second
+backend health check detects Dock restarts. The payload reads back writes, attempts
+rollback after partial failure, and keeps failed restores for retry. Journal
+entries pair window IDs with owner connections and are checked against the public
+WindowServer list to avoid restoring stale or reused IDs.
 
-The small loader is adapted from yabai's MIT-licensed loader; its source commit,
-license and the original arm64e attribution are in [vendor/](vendor/README.md).
-The protocol, controller, appearance policy, payload service and tests are separate
-implementations. SkyLight shadow tags and opacity calls follow the upstream
-[appearance implementation](https://github.com/asmvik/yabai/blob/master/src/osax/payload.m).
+`make test` uses a disposable host and a separate socket; it does not inject into
+Dock. `make test-arm64e` also tests the payload in an arm64e host and requires the
+arm64e boot prerequisite. With the production watcher stopped and backend loaded,
+`python3 tests/live.py` tests a temporary foreign window against the real Dock.
+Run these tests in a graphical login session. `make format` applies `.clang-format`.
+
+The loader is adapted from yabai's MIT-licensed loader, with its original arm64e
+attribution preserved. See [vendor/README.md](vendor/README.md) and the included
+license. Window policy, protocol, service and tests are implemented here.

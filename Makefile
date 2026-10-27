@@ -2,7 +2,7 @@ CC = xcrun clang
 CFLAGS = -Wall -Wextra -Werror -O2 -fobjc-arc -Isrc
 FRAMEWORKS = -framework Cocoa
 
-.PHONY: all clean test test-arm64e
+.PHONY: all clean test test-arm64e format
 all: build/window-effects build/payload.dylib build/loader
 
 build:
@@ -25,7 +25,7 @@ build/test-payload.dylib: src/payload.m src/protocol.h src/skylight.h | build
 build/test-client: src/main.m src/protocol.h | build
 	$(CC) $(CFLAGS) -DWE_TEST_HOST $< $(FRAMEWORKS) -o $@
 
-test: all build/probe build/fixture build/test-payload.dylib build/test-client
+test: all build/fixture build/test-payload.dylib build/test-client
 	python3 tests/integration.py
 
 # Requires arm64e user binaries to be enabled on this Mac, as Dock injection does.
@@ -38,11 +38,11 @@ build/test-payload-arm64e.dylib: src/payload.m src/protocol.h src/skylight.h | b
 test-arm64e: test build/fixture-arm64e build/test-payload-arm64e.dylib
 	WE_TEST_ARCH=arm64e python3 tests/integration.py
 
-build/probe: tests/probe.m src/skylight.h | build
-	$(CC) $(CFLAGS) $< $(FRAMEWORKS) -o $@
-
 build/fixture: tests/fixture.m src/skylight.h | build
 	$(CC) $(CFLAGS) $< $(FRAMEWORKS) -o $@
+
+format:
+	xcrun clang-format -i src/*.m src/*.h tests/*.m
 
 clean:
 	rm -rf build

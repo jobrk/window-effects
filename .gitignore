@@ -1,2 +1,4 @@
 /build/
 .DS_Store
+# Workstation migration/planning notes belong outside this reusable project.
+/PLAN.md

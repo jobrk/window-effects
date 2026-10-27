@@ -16,8 +16,12 @@ typedef struct {
 
 static inline bool weLoad(WEAPI *api) {
     void *lib = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW);
-    if (!lib) return false;
-#define LOAD(field, symbol) *(void **)(&api->field) = dlsym(lib, symbol); if (!api->field) return false
+    if (!lib)
+        return false;
+#define LOAD(field, symbol)                                                                        \
+    *(void **)(&api->field) = dlsym(lib, symbol);                                                  \
+    if (!api->field)                                                                               \
+    return false
     LOAD(connection, "SLSMainConnectionID");
     LOAD(getAlpha, "SLSGetWindowAlpha");
     LOAD(setAlpha, "SLSSetWindowAlpha");
@@ -30,6 +34,8 @@ static inline bool weLoad(WEAPI *api) {
 }
 
 static inline CGError weShadow(WEAPI api, uint32_t wid, bool enabled) {
+    // Bit 3 suppresses the WindowServer shadow: enabling shadows clears it.
+    // AppKit titlebar rims and application-drawn CSS are separate decorations.
     uint64_t tags = UINT64_C(1) << 3;
     return enabled ? api.clearTags(api.connection(), wid, &tags, 64)
                    : api.setTags(api.connection(), wid, &tags, 64);

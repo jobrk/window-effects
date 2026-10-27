@@ -5,10 +5,13 @@ int main(int argc, char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:argc == 2 && !strcmp(argv[1], "--regular")
-            ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyAccessory];
+                                       ? NSApplicationActivationPolicyRegular
+                                       : NSApplicationActivationPolicyAccessory];
         [NSApp finishLaunching];
         NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 100, 320, 120)
-            styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+                                                       styleMask:NSWindowStyleMaskTitled
+                                                         backing:NSBackingStoreBuffered
+                                                           defer:NO];
         window.releasedWhenClosed = NO;
         window.title = @"Window Effects Test";
         [window orderFront:nil];
@@ -23,7 +26,8 @@ int main(int argc, char **argv) {
             if (read(STDIN_FILENO, &command, 1) == 1 && command == 'c') {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [window close];
-                    puts("closed"); fflush(stdout);
+                    puts("closed");
+                    fflush(stdout);
                 });
             }
         });
