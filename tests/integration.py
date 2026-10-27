@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import time
 import signal
+import errno
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
@@ -51,7 +52,8 @@ if SOCKET.exists():
 
 suffix = '-arm64e' if os.environ.get('WE_TEST_ARCH') == 'arm64e' else ''
 env = dict(os.environ, DYLD_INSERT_LIBRARIES=str(BUILD / f"test-payload{suffix}.dylib"))
-fixture = subprocess.Popen([str(BUILD / f"fixture{suffix}")], stdout=subprocess.PIPE, text=True, env=env)
+fixture = subprocess.Popen([str(BUILD / f"fixture{suffix}")], stdin=subprocess.PIPE,
+                           stdout=subprocess.PIPE, text=True, env=env)
 try:
     wid = int(fixture.stdout.readline())
     for _ in range(100):
@@ -117,8 +119,9 @@ try:
             try:
                 connection.sendall(data)
                 connection.recv(1024)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
+            except OSError as error:
+                if error.errno not in (errno.EPIPE, errno.ECONNRESET, errno.ENOTCONN):
+                    raise
     assert cli("doctor")["backend"]["ok"]
 
     cli("set", wid, ".7", "on")
@@ -160,6 +163,15 @@ else: sys.exit(1)
             out, err = watcher.communicate(timeout=8)
             assert watcher.returncode == 0, (out, err)
         print('PASS: AeroSpace disconnect/reconnect, single watcher, signal shutdown')
+
+    cli('set', wid, '.7', 'on')
+    fixture.stdin.write('c\n')
+    fixture.stdin.flush()
+    assert fixture.stdout.readline().strip() == 'closed'
+    assert cli('restore', wid)['failed'] == []
+    assert cli('doctor')['backend']['savedWindows'] == 0
+    assert json.loads((RUNTIME / 'originals.json').read_text()) == {}
+    print('PASS: closed windows are pruned from restoration state')
 finally:
     fixture.terminate()
     fixture.wait(timeout=5)

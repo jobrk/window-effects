@@ -48,9 +48,15 @@ static bool writeWindow(uint32_t wid, NSDictionary *appearance) {
 }
 
 static void pruneClosed(void) {
+    // SkyLight can return stale alpha/tags/owner data after a window closes.
+    // Check the public WindowServer list before trusting those private getters.
+    NSArray *windows = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID));
+    if (!windows) return; // Keep restoration state if enumeration itself fails.
+    NSMutableSet *live = [NSMutableSet set];
+    for (NSDictionary *window in windows) [live addObject:window[(__bridge NSString *)kCGWindowNumber]];
     for (NSNumber *wid in originals.allKeys) {
         NSDictionary *current = readWindow(wid.unsignedIntValue);
-        if (!current || ![current[@"owner"] isEqual:originals[wid][@"owner"]])
+        if (![live containsObject:wid] || !current || ![current[@"owner"] isEqual:originals[wid][@"owner"]])
             [originals removeObjectForKey:wid];
     }
 }

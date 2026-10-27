@@ -31,6 +31,12 @@ try:
     restored = cli('inspect', wid)['appearance']
     assert restored['shadow'] == before['shadow'] and math.isclose(restored['opacity'], before['opacity'], abs_tol=.005)
     print('PASS: real Dock backend changed and restored a separate process window')
+    cli('set', wid, '.63', 'off')
+    fixture.terminate()
+    fixture.wait(timeout=5)
+    assert cli('restore', wid)['failed'] == []
+    assert wid not in cli('doctor')['backend']['windows']
+    print('PASS: destroyed foreign windows leave no stale restoration entry')
     print(json.dumps(cli('doctor'), indent=2))
 finally:
     try:

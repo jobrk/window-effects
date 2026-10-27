@@ -7,7 +7,7 @@
 #include <errno.h>
 #include <math.h>
 
-#define WE_VERSION @"0.1.0"
+#define WE_VERSION @"0.1.1"
 #define WE_MAX_MESSAGE 65536
 
 static inline NSString *weDirectory(void) {
