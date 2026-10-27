@@ -12,6 +12,7 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 destination='/Library/Application Support/WindowEffects'
 for binary in loader payload.dylib; do
     [[ -f $repo/build/$binary ]] || { echo 'Run make first as your normal user.' >&2; exit 1; }
+    codesign --verify "$repo/build/$binary"
 done
 if [[ -L $destination || (-e $destination && ! -d $destination) ]]; then
     echo "Refusing unexpected installation path: $destination" >&2
@@ -20,8 +21,6 @@ fi
 install -d -o root -g wheel -m 755 "$destination"
 install -o root -g wheel -m 755 "$repo/build/loader" "$destination/loader"
 install -o root -g wheel -m 755 "$repo/build/payload.dylib" "$destination/payload.dylib"
-codesign --force --sign - "$destination/loader"
-codesign --force --sign - "$destination/payload.dylib"
 
 # Optional: permit precisely this signed loader, with no arguments. No general
 # sudo access, no shell, no arbitrary payload path, and a hash tied to this build.

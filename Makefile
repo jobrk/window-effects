@@ -13,9 +13,11 @@ build/window-effects: src/main.m src/protocol.h Makefile | build
 
 build/payload.dylib: src/payload.m src/protocol.h src/skylight.h Makefile | build
 	$(CC) $(CFLAGS) -arch arm64e -dynamiclib $< $(FRAMEWORKS) -o $@
+	codesign --force --sign - $@
 
 build/loader: src/loader.m Makefile | build
 	$(CC) -Wall -Wextra -Werror -O2 -arch arm64e $< $(FRAMEWORKS) -o $@
+	codesign --force --sign - $@
 
 build/test-payload.dylib: src/payload.m src/protocol.h src/skylight.h | build
 	$(CC) $(CFLAGS) -DWE_TEST_HOST -dynamiclib $< $(FRAMEWORKS) -o $@
