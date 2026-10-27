@@ -25,60 +25,56 @@ Window Effects owns appearance; AeroSpace owns tiling, workspaces and shortcuts.
    yabai's daemon stopped. Arm64 and arm64e integration tests pass.
 5. [x] Commit a usable release with explicit compatibility evidence and limits.
 
-## Remaining migration work
+## Repository integration and cutover
 
-6. [ ] Complete and commit the **dotfiles** profile.
-   AeroSpace config, installer selection, smoke-test and CI changes are already
-   prepared but uncommitted. Add a `window-effects` Stow package containing
-   `.config/window-effects/config.json`, select it on macOS, and test both packages
-   together. Keep Ghostty's decoration setting and existing machine-local values.
-   Update the migration/rollback guide to include our appearance helper and remove
-   stale statements that the combined setup cannot provide shadows/opacity.
+6. [x] Complete and commit the **dotfiles** profile.
+   AeroSpace and Window Effects policies are Stow-managed on macOS. Smoke tests
+   pass and runtime config validation corrected a quoted regex. Ghostty's local
+   settings and unrelated Neovim, zsh and yabai edits were preserved. Rollback is
+   documented in `dotfiles/aerospace/README.md`.
 
-7. [ ] Complete and commit **Ansible** provisioning.
-   AeroSpace installation and explicit macOS preference tasks are already prepared
-   but uncommitted. Add Window Effects installation pinned to an immutable commit
-   or checksummed release artifact, with a retrievable source established before
-   declaring fresh-machine provisioning complete. The project currently has no
-   remote. Install root-owned backend files with `become`, user files without it,
-   and stow the policy before enabling the watcher. Make service activation and
-   hash-pinned autoload explicit choices; do not prompt for passwords from launchd.
-   Preserve existing yabai/skhd packages and configuration through the trial.
+7. [x] Complete and commit **Ansible** provisioning.
+   `https://github.com/jobrk/window-effects` is public. Ansible fetches an immutable
+   source revision, builds signed artifacts, installs root-owned backend files,
+   stows policy before installing the user watcher, and supports explicit autoload
+   and service activation. Administrator-authenticated installation succeeded.
+   It neither changes SIP nor removes the old packages.
 
-8. [ ] Validate the **three repositories together**.
-   Run Window Effects tests, Stow smoke tests, Ansible lint/syntax/check mode and
-   a targeted provisioning run followed by an idempotence run. Exercise a fresh
-   temporary home as well as migration of existing config. Confirm provisioning
-   does not run conflicting window managers or overwrite local settings. Document
-   Accessibility authorization and the SIP/arm64e prerequisites as manual steps.
-   Preserve unrelated local edits, including the existing Neovim, zsh and yabai
-   changes, and commit only this migration's changes in each repository.
+8. [x] Finish **combined desktop CI verification**.
+   Helper arm64/arm64e tests, GitHub helper/dotfiles checks, Stow smoke tests,
+   Ansible lint/syntax/check mode and local user-side installation/idempotence pass.
+   The dedicated macOS desktop job passed root installation and idempotence
+   (`changed=0`, `failed=0`) in run 40561726184 (including the 0.1.1 pin). CI selects Python 3.14 after the
+   original runner Python 3.15 crashed Ansible before provisioning. The broader
+   Fedora-without-sudo job separately fails Neovim provisioning because Java is
+   missing; that is outside this desktop migration.
 
-9. [ ] Perform the **live cutover on macOS 26.6.2**.
-   Stop yabai/skhd and restart Dock to remove the old resident scripting addition.
-   Load only our backend, repeat the live appearance test, then activate AeroSpace
-   and the watcher using the versioned configuration. Test Ghostty, Zen and Spotify,
-   focus, dialogs, exclusions, workspaces, resizing, sleep/wake, monitor changes,
-   independent AeroSpace/Dock restarts, and restoration/rollback.
+9. [x] Perform the **live cutover on macOS 26.6.2**.
+   The old services are stopped and disabled, their resident Dock code is unloaded,
+   and AeroSpace plus the watcher are active. Tested actual shadow/opacity readback,
+   all workspace bindings, send-without-following, both resize axes, app exclusion,
+   appearance restoration and independent AeroSpace/Dock restart recovery. Details
+   and matching revisions are in COMPATIBILITY.md. Existing packages, native Spaces,
+   configuration and the old sudoers rule remain available for rollback.
 
-10. [ ] Verify **macOS 27** on the actual target build.
-    Repeat the acceptance checks in COMPATIBILITY.md and record OS build, tested
-    Window Effects revision and the matching Ansible/dotfiles revisions. Compilation
-    and tests on macOS 26 do not establish macOS 27 compatibility.
+The final cleanup check exposed stale private API data for closed windows.
+Version 0.1.1 validates journal entries against the public WindowServer list; its
+arm64/arm64e regression tests and helper CI pass. Ansible is pinned to that fix.
+The 0.1.1 payload is installed and active; live foreign-window cleanup, automatic
+Dock recovery and focus/opacity updates pass with no stale journal entries.
 
-11. [ ] Retire the old setup after acceptance.
-    Remove obsolete yabai/skhd services, packages, scripting-addition files and
-    their dedicated sudoers entry. Update provisioning and docs to match the final
-    state. Retain an identifiable rollback revision across all three repositories.
-    Our backend still requires Dock injection; do not re-enable SIP while it needs
-    the existing reduced configuration.
+## Remaining acceptance work
 
-The implementation release is complete; the repository-suite migration and live
-acceptance milestones above remain open. COMPATIBILITY.md records the actual
-runtime evidence and limitations.
+10. [ ] Complete daily-use checks on this Mac.
+    Verify physical shortcuts, hover focus with popups/native video fullscreen,
+    Ctrl+Cmd dragging after app relaunch, logout/login, sleep/wake and external
+    display reconnection. Only one built-in display was connected during testing.
 
-Current machine: macOS 26.6.2 (25G83), Apple Silicon. macOS 27 cannot be
-runtime-validated here. Never mark it tested from an OS version check alone.
+11. [ ] Verify **macOS 27** on the actual target build.
+    Repeat the acceptance checks in COMPATIBILITY.md and record the OS build and
+    all three repository revisions. macOS 26 tests do not establish macOS 27 support.
 
-Keep the running desktop intact unless a short, reversible test is necessary.
-Do not change SIP or install passwordless sudo rules automatically.
+12. [ ] Retire the old setup after acceptance.
+    Remove obsolete yabai/skhd packages, scripting addition files and their own
+    sudoers rule after daily-use acceptance. Keep documented rollback until then.
+    **Do not re-enable SIP while using this backend**; it still needs Dock injection.

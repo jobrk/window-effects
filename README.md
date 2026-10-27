@@ -42,8 +42,10 @@ other applications' windows. Run it in a logged-in graphical macOS session.
 ## Install
 
 First stop any existing appearance controller before enabling ours. When migrating
-from yabai, stop its service and restart Dock to unload the old injection; retain
-your existing configuration until the migration is accepted.
+from yabai, run `yabai -m config window_opacity off` and
+`yabai -m config window_shadow on` before stopping its service, so our original-state
+journal starts from the apps' normal appearance. Restart Dock to unload the old
+injection; retain your existing configuration until the migration is accepted.
 
 Install the backend and load it once:
 
@@ -167,14 +169,18 @@ software requires it.
 
 ## Repository integration
 
-Keep binaries and release tags here. Keep the appearance policy in dotfiles as
-`window-effects/.config/window-effects/config.json`. Ansible can install a pinned
-build and call the two installers; run the user installer without `become`, and
-the backend installer with `become`. The optional autoload rule is an explicit
-choice. Do not put binaries, SIP changes, or broad sudo rules in dotfiles.
+Source and releases live in [jobrk/window-effects](https://github.com/jobrk/window-effects).
+[Dotfiles](https://github.com/jobrk/dotfiles/blob/main/aerospace/README.md) owns both
+the AeroSpace profile and `window-effects/.config/window-effects/config.json`.
+[Ansible](https://github.com/jobrk/ansible#macos-desktop) fetches an immutable source
+revision, builds signed artifacts and installs root-owned backend files separately
+from the user CLI and LaunchAgent. It stows the policy before installing the watcher.
+Autoload and activation are explicit options; installation does not change SIP.
 
-The repository is currently local; no remote release URL is assumed. The existing
-Ansible/dotfiles repositories have not been changed by this project implementation.
+The coordinated desktop is active on macOS 26.6.2. See [PLAN.md](PLAN.md) for
+remaining daily-use, hardware and macOS 27 acceptance checks, and the dotfiles guide
+for controls and rollback. The old packages are retained while their services are
+disabled.
 
 ## Attribution
 
