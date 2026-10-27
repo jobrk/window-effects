@@ -30,6 +30,10 @@ static NSNumber *opacity(NSString *text) {
     return end != start && !*end && isfinite(n) && n >= 0.1 && n <= 1 ? @(n) : nil;
 }
 static NSString *aerospacePath(void) {
+#ifdef WE_TEST_HOST
+    NSString *test = NSProcessInfo.processInfo.environment[@"WE_TEST_AEROSPACE"];
+    if (test) return test;
+#endif
     // LaunchAgents do not inherit an interactive shell PATH.
     for (NSString *path in @[@"/opt/homebrew/bin/aerospace", @"/usr/local/bin/aerospace"])
         if ([NSFileManager.defaultManager isExecutableFileAtPath:path]) return path;
@@ -47,9 +51,30 @@ static NSData *runAero(NSArray<NSString *> *arguments) {
     NSPipe *pipe = [NSPipe pipe]; task.standardOutput = pipe;
     task.standardError = [NSFileHandle fileHandleWithNullDevice];
     if (![task launchAndReturnError:nil]) return nil;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC),
+        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ if (task.running) [task terminate]; });
     NSData *result = [pipe.fileHandleForReading readDataToEndOfFile];
     [task waitUntilExit];
     return task.terminationStatus == 0 ? result : nil;
+}
+
+static void tryAutoload(void) {
+#ifndef WE_TEST_HOST
+    NSString *loader = @"/Library/Application Support/WindowEffects/loader";
+    if (![NSFileManager.defaultManager isExecutableFileAtPath:loader]) return;
+    NSTask *task = [NSTask new];
+    task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/sudo"];
+    // Never prompt from a LaunchAgent. This succeeds only with an existing
+    // authorization or the installer’s optional, hash-pinned sudoers entry.
+    task.arguments = @[@"-n", @"--", loader];
+    task.standardOutput = [NSFileHandle fileHandleWithNullDevice];
+    task.standardError = [NSFileHandle fileHandleWithNullDevice];
+    if ([task launchAndReturnError:nil]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC),
+            dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ if (task.running) [task terminate]; });
+        [task waitUntilExit];
+    }
+#endif
 }
 static NSDictionary *configuration(NSString *path) {
     NSMutableDictionary *config = [@{@"activeOpacity": @1.0, @"inactiveOpacity": @0.9,
@@ -125,6 +150,7 @@ static int watch(NSDictionary *config) {
         @autoreleasepool {
             NSDictionary *status = weRequest(@{@"op": @"status"});
             if (![status[@"ok"] boolValue]) {
+                tryAutoload();
                 fprintf(stderr, "%s\n", [status[@"error"] UTF8String]);
                 sleep(delay); delay = MIN(delay * 2, 30); continue;
             }

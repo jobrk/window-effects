@@ -72,7 +72,7 @@ static NSDictionary *restore(NSNumber *only) {
 }
 
 static NSDictionary *handle(NSDictionary *request) {
-    if (!weNumber(request[@"protocol"]) || [request[@"protocol"] intValue] != 1)
+    if (!weNumber(request[@"protocol"]) || [request[@"protocol"] doubleValue] != 1)
         return weError(@"Unsupported protocol");
     NSString *op = request[@"op"];
     if (![op isKindOfClass:NSString.class]) return weError(@"Missing operation");

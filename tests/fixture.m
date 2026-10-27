@@ -1,10 +1,11 @@
 #import <Cocoa/Cocoa.h>
 #include "skylight.h"
 
-int main(void) {
+int main(int argc, char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
-        [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+        [NSApp setActivationPolicy:argc == 2 && !strcmp(argv[1], "--regular")
+            ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyAccessory];
         NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 100, 320, 120)
             styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
         window.title = @"Window Effects Test";

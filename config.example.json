@@ -1,0 +1,9 @@
+{
+  "activeOpacity": 1.0,
+  "inactiveOpacity": 0.9,
+  "shadows": false,
+  "excludedApps": [
+    "com.apple.systempreferences",
+    "com.apple.SystemProfiler"
+  ]
+}

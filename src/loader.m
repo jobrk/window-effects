@@ -5,6 +5,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #ifdef __arm64__
 #include <ptrauth.h>
@@ -123,6 +124,22 @@ int main(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
+    if (argc != 1) {
+        fprintf(stderr, "This loader accepts no arguments.\n");
+        return 1;
+    }
+    if (geteuid() != 0) {
+        fprintf(stderr, "Loading into Dock requires administrator access. Use sudo.\n");
+        return 1;
+    }
+    struct stat directory_info, payload_info;
+    if (lstat("/Library/Application Support/WindowEffects", &directory_info) ||
+        !S_ISDIR(directory_info.st_mode) || directory_info.st_uid != 0 || (directory_info.st_mode & 022) ||
+        lstat(payload_path, &payload_info) || !S_ISREG(payload_info.st_mode) ||
+        payload_info.st_uid != 0 || (payload_info.st_mode & 022)) {
+        fprintf(stderr, "Payload and its directory must be root-owned, non-symlink, and not writable by other users.\n");
+        return 1;
+    }
     int result = 0;
     mach_port_t task = 0;
     thread_act_t thread = 0;

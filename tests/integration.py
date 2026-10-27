@@ -8,6 +8,7 @@ import socket
 import subprocess
 import tempfile
 import time
+import signal
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
@@ -86,6 +87,7 @@ try:
         {"op": "status"},
         {"protocol": True, "op": "status"},
         {"protocol": 2, "op": "status"},
+        {"protocol": 1.5, "op": "status"},
         {"protocol": 1, "op": "execute", "window": wid},
         {"protocol": 1, "op": "set", "window": True, "opacity": .5, "shadow": False},
         {"protocol": 1, "op": "set", "window": wid, "opacity": "0.5", "shadow": False},
@@ -124,6 +126,39 @@ try:
     assert cli("restore")["restored"] == 1
     assert json.loads((RUNTIME / "originals.json").read_text()) == {}
     print("PASS: real appearance/readback, restoration, journaling, validation, listener resilience")
+
+    with tempfile.TemporaryDirectory() as temp:
+        fake = Path(temp) / 'aerospace'
+        marker = Path(temp) / 'subscriptions'
+        fake.write_text('''#!/usr/bin/env python3
+import sys, time
+from pathlib import Path
+if sys.argv[1] == 'subscribe':
+    with Path(__file__).with_name('subscriptions').open('a') as f: f.write('start\\n')
+    print('{"_event":"focus-changed"}', flush=True)
+    time.sleep(.1)
+elif '--all' in sys.argv: print('[]')
+else: sys.exit(1)
+''')
+        fake.chmod(0o755)
+        watcher = subprocess.Popen([str(BUILD / 'test-client'), 'watch'],
+                                   env=dict(os.environ, WE_TEST_AEROSPACE=str(fake)),
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            for _ in range(150):
+                if marker.exists() and len(marker.read_text().splitlines()) >= 2: break
+                assert watcher.poll() is None, 'watch exited unexpectedly'
+                time.sleep(.02)
+            else: raise AssertionError('watch did not reconnect')
+            duplicate = subprocess.run([str(BUILD / 'test-client'), 'watch'],
+                                       env=dict(os.environ, WE_TEST_AEROSPACE=str(fake)),
+                                       capture_output=True, text=True, timeout=5)
+            assert duplicate.returncode == 1 and 'already running' in duplicate.stdout
+        finally:
+            watcher.send_signal(signal.SIGTERM)
+            out, err = watcher.communicate(timeout=8)
+            assert watcher.returncode == 0, (out, err)
+        print('PASS: AeroSpace disconnect/reconnect, single watcher, signal shutdown')
 finally:
     fixture.terminate()
     fixture.wait(timeout=5)
