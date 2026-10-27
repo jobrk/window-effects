@@ -17,7 +17,7 @@ remove titlebars, AppKit's titlebar rim or decorations drawn by an application.
   [upstream prerequisites](https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection).
 
 The installers do not change SIP or boot arguments. This project uses private
-APIs: live behavior is verified on macOS 26.6.2; macOS 27 is unverified. See
+APIs: live behavior is verified on macOS 26.6.2 and 27.2 (26B123). See
 [COMPATIBILITY.md](COMPATIBILITY.md) for the tested scope.
 
 ## Build and install
