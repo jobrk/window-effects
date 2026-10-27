@@ -22,11 +22,13 @@ upgrade and reboot. Verified without yabai's daemon or Dock payload:
 - Original appearance restoration on real application windows, followed by
   reapplication and focus dimming across two AeroSpace workspaces.
 - Automatic backend loading and appearance recovery after restarting Dock.
+- AeroSpace exit restores appearance; restart reconnects the watcher and
+  reapplies effects. System Settings floats and retains its original appearance
+  while focused and unfocused, without entering the restoration journal.
 - Source build and disposable-host integration tests on arm64 and arm64e.
 
 These results apply to the exact builds listed; other macOS 27 builds have not
-been tested. App exclusions and AeroSpace exit/restart were tested on macOS 26
-but have not been repeated on macOS 27.
+been tested.
 
 SIP/arm64e prerequisites are required even though no yabai process is involved.
 Public WindowServer enumeration is needed for cleanup: private SkyLight getters
