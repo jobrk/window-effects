@@ -49,8 +49,9 @@ if SOCKET.exists():
         if probe.connect_ex(str(SOCKET)) == 0:
             raise SystemExit("Another integration test is running")
 
-env = dict(os.environ, DYLD_INSERT_LIBRARIES=str(BUILD / "test-payload.dylib"))
-fixture = subprocess.Popen([str(BUILD / "fixture")], stdout=subprocess.PIPE, text=True, env=env)
+suffix = '-arm64e' if os.environ.get('WE_TEST_ARCH') == 'arm64e' else ''
+env = dict(os.environ, DYLD_INSERT_LIBRARIES=str(BUILD / f"test-payload{suffix}.dylib"))
+fixture = subprocess.Popen([str(BUILD / f"fixture{suffix}")], stdout=subprocess.PIPE, text=True, env=env)
 try:
     wid = int(fixture.stdout.readline())
     for _ in range(100):

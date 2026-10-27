@@ -1,0 +1,18 @@
+name: Build and test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compile and run disposable-host tests
+        run: make test
+      - name: Verify Dock architectures and scripts
+        run: |
+          test "$(lipo -archs build/loader)" = arm64e
+          test "$(lipo -archs build/payload.dylib)" = arm64e
+          bash -n scripts/*.sh
+          build/window-effects check-config config.example.json
+          git diff --check

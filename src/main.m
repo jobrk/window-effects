@@ -2,6 +2,7 @@
 #include "protocol.h"
 #include <signal.h>
 #include <sys/file.h>
+#include <poll.h>
 
 static volatile sig_atomic_t stopping;
 static volatile sig_atomic_t childPID;
@@ -164,11 +165,25 @@ static int watch(NSDictionary *config) {
             NSDictionary *initial = apply(config);
             if (![initial[@"ok"] boolValue]) printJSON(initial);
             FILE *stream = fdopen(dup(pipe.fileHandleForReading.fileDescriptor), "r");
+            if (stream) setvbuf(stream, NULL, _IONBF, 0);
             char *line = NULL; size_t size = 0;
-            while (!stopping && stream && getline(&line, &size, stream) > 0) {
+            while (!stopping && stream) {
+                struct pollfd event = {.fd = fileno(stream), .events = POLLIN};
+                int ready = poll(&event, 1, 5000);
+                if (ready < 0) { if (errno == EINTR) continue; break; }
+                if (!ready) {
+                    // Liveness only: no window polling. Dock can restart without
+                    // AeroSpace emitting an event, so reconnect the backend here.
+                    if (![weRequest(@{@"op": @"status"})[@"ok"] boolValue]) break;
+                    continue;
+                }
+                if (getline(&line, &size, stream) <= 0) break;
                 @autoreleasepool {
                     NSDictionary *result = apply(config);
-                    if (![result[@"ok"] boolValue]) printJSON(result);
+                    if (![result[@"ok"] boolValue]) {
+                        printJSON(result);
+                        if (![weRequest(@{@"op": @"status"})[@"ok"] boolValue]) break;
+                    }
                     delay = 1;
                 }
             }

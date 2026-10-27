@@ -9,6 +9,9 @@
 
 #ifdef __arm64__
 #include <ptrauth.h>
+#if !__has_feature(ptrauth_calls)
+#error "Build the Dock loader with -arch arm64e, not arm64"
+#endif
 kern_return_t (*_thread_convert_thread_state)(thread_act_t thread, int direction, thread_state_flavor_t flavor, thread_state_t in_state, mach_msg_type_number_t in_stateCnt, thread_state_t out_state, mach_msg_type_number_t *out_stateCnt);
 #endif
 
