@@ -15,7 +15,7 @@ build/payload.dylib: src/payload.m src/protocol.h src/skylight.h | build
 	$(CC) $(CFLAGS) -arch arm64e -dynamiclib $< $(FRAMEWORKS) -o $@
 
 build/loader: src/loader.m | build
-	$(CC) -Wall -Wextra -Werror -O2 $< $(FRAMEWORKS) -o $@
+	$(CC) -Wall -Wextra -Werror -O2 -arch arm64e $< $(FRAMEWORKS) -o $@
 
 build/test-payload.dylib: src/payload.m src/protocol.h src/skylight.h | build
 	$(CC) $(CFLAGS) -DWE_TEST_HOST -dynamiclib $< $(FRAMEWORKS) -o $@
